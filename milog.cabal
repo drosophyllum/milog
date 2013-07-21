@@ -17,6 +17,7 @@ cabal-version:       >=1.8
 executable milog
   -- main-is:             
   -- other-modules:       
-  build-depends:       base ==4.6.*
-                       happy
-                       alex
+  build-depends:       base ==4.6.*,
+                       happy,
+                       alex,
+                       syb	

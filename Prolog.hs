@@ -8,7 +8,8 @@ import Data.Char
 import System.Environment
 import Debug.Trace
 import Data.Generics
-
+import Control.Monad.State
+import Control.Monad.Maybe
 
 parse:: String -> [Command]
 parse x = prolog $ alexScanTokens x
@@ -20,38 +21,29 @@ main = do
 	let program =  prolog $ alexScanTokens $ s
 	let rules = map clause 	$ init program 
 	let goals = query 	$ last program 
-	
-	putStrLn $show 		$prove rules goals
+	putStrLn $show 		$ prove rules goals
 
-
-
-
--- perhaps using generics here is bad?
+-- apply everywhere the substitution transform in the subtree
 apply :: Substitution -> [Term] -> [Term]
-apply s ts = everywhere (mkT (applySubst s)) ts
+apply s ts = everywhere (mkT (apply' s)) ts
 
-applySubst :: Substitution -> Term -> Term
-applySubst ((v , v'):s) var 
+-- replace variable as per the substitution
+apply' :: Substitution -> Term -> Term
+apply' ((v , v'):s) var 
 		| v==var 	= v'
-		| otherwise	= var			
-applySubst  _ x 		= x 
+		| otherwise	= var
+			
+apply'  _ x 			= x 
 -- explore: is chaining valuable?
 
-
-unify :: Term -> Term -> Maybe Substitution 
+--Using the maybe monad.
+unify :: Term -> Term -> Maybe Substitution
 unify v@(Var _ _) t = Just [(v,t)]
 unify t v@(Var _ _) = Just [(v,t)]
-unify (Function a as) (Function b bs)
-	| a == b 	= unifyList as bs
-	| otherwise 	= Nothing
-
-unifyList :: [Term] -> [Term] -> Maybe Substitution
-unifyList [] [] = Just true
-unifyList (x:xs) (y:ys) = do
-	s <- unify x y
-	s' <- unifyList (apply s xs) (apply s ys)
-	return (s ++ s')
-unifyList _ _  = Nothing
+unify (Function x xs) (Function y ys) 
+	| similar 	= (liftM concat) $ mapM (uncurry unify) (zip xs ys)
+	| otherwise	= Nothing
+	where similar =  (x==y) && (length xs == length ys)
 
 
 prove :: Rules -> [Term] -> [Substitution]
@@ -69,13 +61,10 @@ branch :: Rules -> [Term] -> [(Substitution,[Term])]
 branch rules (goal:goals) = do
 	head :- body <- rules
 	s <- maybeToList $ unify goal head
-	return (s, apply s (body ++ goals))
+	return 	(s::Substitution, apply s (body ++ goals))
 
 rename:: Rules -> Int -> Rules
 rename rules i =  everywhere (mkT renameVar) rules  -- rename vairables everywhere in rules
 	where 
 		renameVar (Var s _) 		= Var s i	-- Tranform vars
 		renameVar x			= x  		-- Do not transform non-vars
-
-
-
