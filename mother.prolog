@@ -1,0 +1,6 @@
+female(anne).
+female(christy).
+parent(anne,chris).
+mother(X,Y):- parent(X,Y), female(X).
+
+?-mother(X,chris).
