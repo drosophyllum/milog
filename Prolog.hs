@@ -21,8 +21,9 @@ main = do
 	let program =  prolog $ alexScanTokens $ s
 	let rules = map clause 	$ init program 
 	let goals = query 	$ last program 
-	putStrLn $show 		$ prove rules goals
-
+	let sub   =  prove rules goals
+	putStrLn $ show $ sub 
+	putStrLn $ show $ map ((flip apply) goals) sub
 -- apply everywhere the substitution transform in the subtree
 apply :: Substitution -> [Term] -> [Term]
 apply s ts = everywhere (mkT (apply' s)) ts
@@ -30,8 +31,8 @@ apply s ts = everywhere (mkT (apply' s)) ts
 -- replace variable as per the substitution
 apply' :: Substitution -> Term -> Term
 apply' ((v , v'):s) var 
-		| v==var 	= v'
-		| otherwise	= var
+		| v==var 	= apply' s v'  -- chain
+		| otherwise	= apply' s var -- chain
 			
 apply'  _ x 			= x 
 -- explore: is chaining valuable?
@@ -49,6 +50,7 @@ unify (Function x xs) (Function y ys)
 prove :: Rules -> [Term] -> [Substitution]
 prove rules goals = find rules 1 goals
 
+--bfs in the list monad
 find :: Rules -> Int -> [Term] -> [Substitution]
 find rules i [] = [true]
 find rules i goals = do 
