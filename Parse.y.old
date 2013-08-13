@@ -14,13 +14,20 @@ import Grammar
 	'('	{Begin}	
 	')'	{End}	
 	':-'	{Horn}
+	'?-'	{Ask}
 	'.'	{Period}
 	','	{Comma}
 
 %%
-Facts : Clause Facts  		{($1) : $2}
-	| Clause  		{[$1]}
+Commands : Facts		{$1}
+	| Facts Queries 	{$1 ++ [$2]}
+Facts : Clause Facts  		{(Fact $1) : $2}
+	| Clause  		{[Fact $1]}
 	
+Queries : Query Queries		{Query $ ((\(Query qs)->qs) $1) ++ ((\(Query qs)-> qs) $2)}
+	| Query			{$1}
+Query : '?-' Term '.'		{Query [$2]}	
+
 Clause : Term ':-' TermList '.'	{$1 :- $3}
 	| Term '.'		{$1 :- []}
 

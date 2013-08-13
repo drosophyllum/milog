@@ -4,69 +4,68 @@ import Parse
 import Lexer
 import Grammar
 import Data.Maybe
-import Data.Char 
 import System.Environment
 import Debug.Trace
 import Data.Generics
-import Control.Monad.State
-import Control.Monad.Maybe
+import Control.Monad
+import Data.List(intercalate)
+import DLP
+import ILP
+import Data.List
+import System.IO.Strict(readFile)  
+import Prelude hiding(readFile)
+import System.IO(putStr,hFlush,stdout)
 
-parse:: String -> [Command]
-parse x = prolog $ alexScanTokens x
+
+-- -parse:: String -> [Clause]
+parse x 
+	|(Ok y) <-prolog $ alexScanTokens x = y
+	|otherwise = []
 
 
 main = do 
 	[filePath] 	<- getArgs
+	interpreter filePath
+
+interpreter filePath = do
 	s 		<- readFile filePath
-	let program =  prolog $ alexScanTokens $ s
-	let rules = map clause 	$ init program 
-	let goals = query 	$ last program 
-	let sub   =  prove rules goals
-	putStrLn $ show $ sub 
-	putStrLn $ show $ map ((flip apply) goals) sub
--- apply everywhere the substitution transform in the subtree
-apply :: Substitution -> [Term] -> [Term]
-apply s ts = everywhere (mkT (apply' s)) ts
+	putStrLn $ "HAL is opening your file: " ++ filePath
+	let program =   parse s
+	if (program /= []) 
+			then putStrLn "HAL understands your file."
+			else putStrLn "File contents do not parse."	
+	putStrLn "HAL is updating his wisdom." 
+	w' 	 	<- readFile "wisdom.HAL"
+	let wisdom 	= parse w'
+	writeFile "wisdom.HAL"$ concatMap show $ nub (program++wisdom)
+	putStrLn "HAL has asimilated the knowledge."
+	query     <- var []
+	knowledge <- var (program++wisdom) 
+	forever $ do
+		q <- get query 
+		knowledge' <- get knowledge
+		if (q /= []) 
+			then  think q knowledge'
+			else return  []   -- does not do what you think
+		putStr ">>" 
+		hFlush stdout
+		line <-  getLine 
+		case line of
+			('?':ln)  -> modify query (++ (parse line))
+			otherwise -> modify knowledge ( ++ (parse line))
 
--- replace variable as per the substitution
-apply' :: Substitution -> Term -> Term
-apply' ((v , v'):s) var 
-		| v==var 	= apply' s v'  -- chain
-		| otherwise	= apply' s var -- chain
-			
-apply'  _ x 			= x 
--- explore: is chaining valuable?
-
---Using the maybe monad.
-unify :: Term -> Term -> Maybe Substitution
-unify v@(Var _ _) t = Just [(v,t)]
-unify t v@(Var _ _) = Just [(v,t)]
-unify (Function x xs) (Function y ys) 
-	| similar 	= (liftM concat) $ mapM (uncurry unify) (zip xs ys)
-	| otherwise	= Nothing
-	where similar =  (x==y) && (length xs == length ys)
+think:: Rules -> [Clause] -> IO([Term])
+think question knowledge = do 
+		putStrLn "Thinking ...."
+		return $ deduct question knowledge
+-- search 
+--
 
 
-prove :: Rules -> [Term] -> [Substitution]
-prove rules goals = find rules 1 goals
 
---bfs in the list monad
-find :: Rules -> Int -> [Term] -> [Substitution]
-find rules i [] = [true]
-find rules i goals = do 
-	let rules' = rename rules i
-	(s, goals')  <- branch rules' goals
-	solution <- find rules (i + 1) goals'
-	return (s ++ solution)
-
-branch :: Rules -> [Term] -> [(Substitution,[Term])]
-branch rules (goal:goals) = do
-	head :- body <- rules
-	s <- maybeToList $ unify goal head
-	return 	(s::Substitution, apply s (body ++ goals))
-
-rename:: Rules -> Int -> Rules
-rename rules i =  everywhere (mkT renameVar) rules  -- rename vairables everywhere in rules
-	where 
-		renameVar (Var s _) 		= Var s i	-- Tranform vars
-		renameVar x			= x  		-- Do not transform non-vars
+--		knowldge <- get knowledge
+--	let rules = map clause 	$ init program 
+--	let goals = query 	$ last program 
+--	let found = deduct rules goals
+--	putStrLn $"\n\n\n" ++ (concatMap show$ rules)
+--	putStrLn $ "\n####DEDUCED#####\n" ++ (intercalate "\n" (map   show  found)) ++ "\n\n\n"

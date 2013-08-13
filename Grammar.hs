@@ -27,5 +27,6 @@ instance Show Term where
 	show (Function str terms) = str ++ "(" ++(intercalate "," $map show terms) ++ ")"
 
 instance Show Clause where
+	show (term :- []) = (show term) ++ ".\n"
 	show (term :- terms) = (show term) ++ ":-" ++ (intercalate "," $map show terms) ++ ".\n"
 
